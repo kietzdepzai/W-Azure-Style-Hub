@@ -1,61 +1,67 @@
---// W-Azure Style Hub - Hitbox Expander
+--// W-Azure Style Hub - Stable Rewrite
+-- Fix: quái không còn bị kéo bay lên trời
+
 getgenv().AutoFarm = false
 getgenv().BringMob = true
 getgenv().SelectedWeapon = "Melee"
 getgenv().FarmHeight = 10
-getgenv().AttackSpeed = 0.02
-getgenv().HitboxSize = 8          -- Kích thước hitbox
-getgenv().EnableHitbox = true
+getgenv().AttackSpeed = 0.025
 
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local success, Fluent = pcall(function()
+    return loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+end)
+
+if not success or not Fluent then
+    warn("[W-Azure Style] Không load được UI")
+    return
+end
 
 local Window = Fluent:CreateWindow({
     Title = "W-Azure Style Hub",
-    SubTitle = "Hitbox + Farm",
-    TabWidth = 160,
-    Size = UDim2.fromOffset(520, 460),
+    SubTitle = "Stable Farm",
+    TabWidth = 150,
+    Size = UDim2.fromOffset(480, 400),
     Acrylic = false,
     Theme = "Dark",
     MinimizeKey = Enum.KeyCode.LeftControl
 })
 
 local MainTab = Window:AddTab({ Title = "Main Farm", Icon = "swords" })
-local PlayerTab = Window:AddTab({ Title = "Player", Icon = "user" })
 local SettingsTab = Window:AddTab({ Title = "Settings", Icon = "settings" })
 
 local Players = game:GetService("Players")
 local VirtualUser = game:GetService("VirtualUser")
 local LocalPlayer = Players.LocalPlayer
 
-local function GetCharacter()
-    return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local function GetChar()
+    return LocalPlayer.Character
 end
 
-local function GetHumanoid()
-    local char = GetCharacter()
-    return char and char:FindFirstChildOfClass("Humanoid")
+local function GetHum()
+    local c = GetChar()
+    return c and c:FindFirstChildOfClass("Humanoid")
 end
 
 local function GetRoot()
-    local char = GetCharacter()
-    return char and char:FindFirstChild("HumanoidRootPart")
+    local c = GetChar()
+    return c and c:FindFirstChild("HumanoidRootPart")
 end
 
 local function GetClosestMob()
     local root = GetRoot()
     if not root then return nil end
 
-    local closest, minDist = nil, math.huge
-    local enemies = workspace:FindFirstChild("Enemies")
-    if not enemies then return nil end
+    local closest, dist = nil, math.huge
+    local folder = workspace:FindFirstChild("Enemies")
+    if not folder then return nil end
 
-    for _, mob in ipairs(enemies:GetChildren()) do
+    for _, mob in ipairs(folder:GetChildren()) do
         local hum = mob:FindFirstChildOfClass("Humanoid")
         local hrp = mob:FindFirstChild("HumanoidRootPart")
         if hum and hrp and hum.Health > 0 then
-            local dist = (root.Position - hrp.Position).Magnitude
-            if dist < minDist then
-                minDist = dist
+            local d = (root.Position - hrp.Position).Magnitude
+            if d < dist then
+                dist = d
                 closest = mob
             end
         end
@@ -63,82 +69,49 @@ local function GetClosestMob()
     return closest
 end
 
--- Equip vũ khí
 local function EquipWeapon()
-    local char = GetCharacter()
-    local hum = GetHumanoid()
+    local char = GetChar()
+    local hum = GetHum()
     if not char or not hum then return end
 
     local backpack = LocalPlayer:FindFirstChild("Backpack")
     if not backpack then return end
 
-    local weaponType = getgenv().SelectedWeapon
+    local wtype = getgenv().SelectedWeapon
 
-    local function match(tool)
+    local function isMatch(tool)
         if not tool:IsA("Tool") then return false end
-        local n = tool.Name:lower()
-        if weaponType == "Melee" then
-            return n:find("combat") or n == "combat" or n:find("fist") or n:find("melee")
-        elseif weaponType == "Sword" then
-            return tool:FindFirstChild("Sword") or n:find("sword") or n:find("blade") or n:find("cutlass") or n:find("katana") or n:find("saber")
-        elseif weaponType == "Fruit" then
-            return tool:FindFirstChild("Fruit") or n:find("fruit") or n:find("power") or n:find("bomb") or n:find("flame") or n:find("ice") or n:find("light") or n:find("dark") or n:find("magma") or n:find("quake") or n:find("buddha") or n:find("phoenix") or n:find("dragon")
-        elseif weaponType == "Gun" then
-            return tool:FindFirstChild("Gun") or n:find("gun") or n:find("pistol") or n:find("rifle") or n:find("cannon")
+        local n = string.lower(tool.Name)
+        if wtype == "Melee" then
+            return n:find("combat") or n == "combat"
+        elseif wtype == "Sword" then
+            return n:find("sword") or n:find("blade") or n:find("cutlass") or n:find("katana") or n:find("saber") or tool:FindFirstChild("Sword")
+        elseif wtype == "Fruit" then
+            return n:find("fruit") or tool:FindFirstChild("Fruit")
+        elseif wtype == "Gun" then
+            return n:find("gun") or n:find("pistol") or n:find("rifle") or tool:FindFirstChild("Gun")
         end
         return false
     end
 
     local holding = char:FindFirstChildOfClass("Tool")
-    if holding and match(holding) then return true end
+    if holding and isMatch(holding) then return end
 
-    for _, tool in ipairs(backpack:GetChildren()) do
-        if match(tool) then
-            pcall(function()
-                hum:EquipTool(tool)
-            end)
-            return true
-        end
-    end
-    return false
-end
-
--- Tăng hitbox vũ khí
-local function ExpandHitbox()
-    if not getgenv().EnableHitbox then return end
-
-    local char = GetCharacter()
-    if not char then return end
-
-    local tool = char:FindFirstChildOfClass("Tool")
-    if not tool then return end
-
-    local size = getgenv().HitboxSize
-
-    for _, part in ipairs(tool:GetDescendants()) do
-        if part:IsA("BasePart") then
-            pcall(function()
-                part.Size = Vector3.new(size, size, size)
-                part.Transparency = 1
-                part.CanCollide = false
-                part.Massless = true
-            end)
+    for _, t in ipairs(backpack:GetChildren()) do
+        if isMatch(t) then
+            pcall(function() hum:EquipTool(t) end)
+            break
         end
     end
 end
 
--- Hàm đánh
-local function DoAttack()
-    local char = GetCharacter()
+local function Attack()
+    local char = GetChar()
     if not char then return end
-
     local tool = char:FindFirstChildOfClass("Tool")
     if tool then
-        pcall(function()
-            tool:Activate()
-        end)
+        pcall(function() tool:Activate() end)
     end
-
     pcall(function()
         VirtualUser:CaptureController()
         VirtualUser:ClickButton1(Vector2.new(0, 0))
@@ -147,17 +120,17 @@ end
 
 -- ==================== UI ====================
 MainTab:AddParagraph({
-    Title = "Farm + Hitbox",
-    Content = "Bay trên đầu + tăng hitbox + tự động đánh"
+    Title = "Stable Farm",
+    Content = "Bay trên đầu quái + gom đúng cách"
 })
 
-MainTab:AddDropdown("WeaponType", {
-    Title = "Chọn vũ khí",
+MainTab:AddDropdown("Weapon", {
+    Title = "Vũ khí",
     Values = {"Melee", "Sword", "Fruit", "Gun"},
     Multi = false,
     Default = "Melee"
-}):OnChanged(function(Value)
-    getgenv().SelectedWeapon = Value
+}):OnChanged(function(v)
+    getgenv().SelectedWeapon = v
 end)
 
 MainTab:AddToggle("AutoFarm", {
@@ -166,130 +139,87 @@ MainTab:AddToggle("AutoFarm", {
 }):OnChanged(function(Value)
     getgenv().AutoFarm = Value
 
-    if Value then
-        task.spawn(function()
-            while getgenv().AutoFarm do
-                local root = GetRoot()
-                local mob = GetClosestMob()
+    if not Value then return end
 
-                if root and mob then
-                    local mobHRP = mob:FindFirstChild("HumanoidRootPart")
-                    local mobHum = mob:FindFirstChildOfClass("Humanoid")
+    -- Vòng di chuyển + vị trí
+    task.spawn(function()
+        while getgenv().AutoFarm do
+            local root = GetRoot()
+            local mob = GetClosestMob()
 
-                    if mobHRP and mobHum and mobHum.Health > 0 then
-                        EquipWeapon()
-                        ExpandHitbox()
+            if root and mob then
+                local hrp = mob:FindFirstChild("HumanoidRootPart")
+                local hum = mob:FindFirstChildOfClass("Humanoid")
 
-                        local height = getgenv().FarmHeight
+                if hrp and hum and hum.Health > 0 then
+                    EquipWeapon()
 
-                        -- Bay trên đầu
-                        root.CFrame = CFrame.new(mobHRP.Position + Vector3.new(0, height, 0))
-                        root.AssemblyLinearVelocity = Vector3.zero
-                        root.AssemblyAngularVelocity = Vector3.zero
+                    local height = getgenv().FarmHeight
+                    local mobPos = hrp.Position
 
-                        -- Gom quái
-                        if getgenv().BringMob then
-                            pcall(function()
-                                mobHRP.CFrame = CFrame.new(root.Position.X, root.Position.Y - height + 1, root.Position.Z)
-                                mobHRP.AssemblyLinearVelocity = Vector3.zero
-                                mobHRP.AssemblyAngularVelocity = Vector3.zero
-                            end)
-                        end
+                    -- 1. Đặt nhân vật trên đầu quái (dùng vị trí gốc của quái)
+                    local playerPos = Vector3.new(mobPos.X, mobPos.Y + height, mobPos.Z)
+                    root.CFrame = CFrame.new(playerPos)
+                    root.AssemblyLinearVelocity = Vector3.zero
+                    root.AssemblyAngularVelocity = Vector3.zero
 
-                        DoAttack()
+                    -- 2. Kéo quái về dưới chân (giữ Y gần bằng Y gốc của quái)
+                    if getgenv().BringMob then
+                        pcall(function()
+                            local underPos = Vector3.new(playerPos.X, mobPos.Y, playerPos.Z)
+                            hrp.CFrame = CFrame.new(underPos)
+                            hrp.AssemblyLinearVelocity = Vector3.zero
+                            hrp.AssemblyAngularVelocity = Vector3.zero
+                        end)
                     end
                 end
-
-                task.wait(0.03)
             end
-        end)
 
-        -- Spam đánh
-        task.spawn(function()
-            while getgenv().AutoFarm do
-                DoAttack()
-                task.wait(getgenv().AttackSpeed)
-            end
-        end)
-    end
+            task.wait(0.03)
+        end
+    end)
+
+    -- Vòng đánh riêng
+    task.spawn(function()
+        while getgenv().AutoFarm do
+            Attack()
+            task.wait(getgenv().AttackSpeed)
+        end
+    end)
 end)
 
 MainTab:AddToggle("BringMob", {
     Title = "Gom Quái",
     Default = true
-}):OnChanged(function(Value)
-    getgenv().BringMob = Value
-end)
-
-MainTab:AddToggle("EnableHitbox", {
-    Title = "Tăng Hitbox",
-    Default = true
-}):OnChanged(function(Value)
-    getgenv().EnableHitbox = Value
+}):OnChanged(function(v)
+    getgenv().BringMob = v
 end)
 
 -- Settings
-SettingsTab:AddSlider("FarmHeight", {
-    Title = "Độ cao trên đầu quái",
+SettingsTab:AddSlider("Height", {
+    Title = "Độ cao trên đầu",
     Default = 10,
-    Min = 4,
-    Max = 25,
+    Min = 5,
+    Max = 20,
     Rounding = 0
-}):OnChanged(function(Value)
-    getgenv().FarmHeight = Value
+}):OnChanged(function(v)
+    getgenv().FarmHeight = v
 end)
 
-SettingsTab:AddSlider("HitboxSize", {
-    Title = "Kích thước Hitbox",
-    Default = 8,
-    Min = 3,
-    Max = 25,
-    Rounding = 0
-}):OnChanged(function(Value)
-    getgenv().HitboxSize = Value
-end)
-
-SettingsTab:AddSlider("AttackSpeed", {
-    Title = "Tốc độ đánh (càng nhỏ càng nhanh)",
-    Default = 0.02,
-    Min = 0.008,
-    Max = 0.1,
+SettingsTab:AddSlider("Speed", {
+    Title = "Tốc độ đánh",
+    Default = 0.025,
+    Min = 0.01,
+    Max = 0.08,
     Rounding = 3
-}):OnChanged(function(Value)
-    getgenv().AttackSpeed = Value
-end)
-
--- Player
-PlayerTab:AddSlider("WalkSpeed", {
-    Title = "Walk Speed",
-    Default = 16,
-    Min = 16,
-    Max = 250,
-    Rounding = 0
-}):OnChanged(function(Value)
-    pcall(function()
-        local hum = GetHumanoid()
-        if hum then hum.WalkSpeed = Value end
-    end)
-end)
-
-PlayerTab:AddSlider("JumpPower", {
-    Title = "Jump Power",
-    Default = 50,
-    Min = 50,
-    Max = 250,
-    Rounding = 0
-}):OnChanged(function(Value)
-    pcall(function()
-        local hum = GetHumanoid()
-        if hum then hum.JumpPower = Value end
-    end)
+}):OnChanged(function(v)
+    getgenv().AttackSpeed = v
 end)
 
 Fluent:Notify({
-    Title = "W-Azure Style Hub",
-    Content = "Đã thêm Tăng Hitbox",
+    Title = "W-Azure Style",
+    Content = "Stable version loaded",
     Duration = 4
 })
 
-print("[W-Azure Style] Hitbox Expander loaded")
+print("[W-Azure Style] Stable Rewrite loaded")
