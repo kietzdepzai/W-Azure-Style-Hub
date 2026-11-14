@@ -1,17 +1,19 @@
---// W-Azure Style Hub - Fixed Auto Attack
+--// W-Azure Style Hub - Hitbox Expander
 getgenv().AutoFarm = false
 getgenv().BringMob = true
 getgenv().SelectedWeapon = "Melee"
-getgenv().FarmHeight = 12
+getgenv().FarmHeight = 10
 getgenv().AttackSpeed = 0.02
+getgenv().HitboxSize = 8          -- Kích thước hitbox
+getgenv().EnableHitbox = true
 
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 
 local Window = Fluent:CreateWindow({
     Title = "W-Azure Style Hub",
-    SubTitle = "Fixed Attack",
+    SubTitle = "Hitbox + Farm",
     TabWidth = 160,
-    Size = UDim2.fromOffset(520, 430),
+    Size = UDim2.fromOffset(520, 460),
     Acrylic = false,
     Theme = "Dark",
     MinimizeKey = Enum.KeyCode.LeftControl
@@ -87,21 +89,42 @@ local function EquipWeapon()
         return false
     end
 
-    -- Đang cầm đúng rồi thì thôi
     local holding = char:FindFirstChildOfClass("Tool")
     if holding and match(holding) then return true end
 
-    -- Tìm trong backpack
     for _, tool in ipairs(backpack:GetChildren()) do
         if match(tool) then
             pcall(function()
                 hum:EquipTool(tool)
             end)
-            task.wait(0.05)
             return true
         end
     end
     return false
+end
+
+-- Tăng hitbox vũ khí
+local function ExpandHitbox()
+    if not getgenv().EnableHitbox then return end
+
+    local char = GetCharacter()
+    if not char then return end
+
+    local tool = char:FindFirstChildOfClass("Tool")
+    if not tool then return end
+
+    local size = getgenv().HitboxSize
+
+    for _, part in ipairs(tool:GetDescendants()) do
+        if part:IsA("BasePart") then
+            pcall(function()
+                part.Size = Vector3.new(size, size, size)
+                part.Transparency = 1
+                part.CanCollide = false
+                part.Massless = true
+            end)
+        end
+    end
 end
 
 -- Hàm đánh
@@ -124,8 +147,8 @@ end
 
 -- ==================== UI ====================
 MainTab:AddParagraph({
-    Title = "Farm trên đầu quái",
-    Content = "Bay trên đầu + tự động đánh"
+    Title = "Farm + Hitbox",
+    Content = "Bay trên đầu + tăng hitbox + tự động đánh"
 })
 
 MainTab:AddDropdown("WeaponType", {
@@ -144,7 +167,6 @@ MainTab:AddToggle("AutoFarm", {
     getgenv().AutoFarm = Value
 
     if Value then
-        -- Vòng lặp di chuyển + đánh
         task.spawn(function()
             while getgenv().AutoFarm do
                 local root = GetRoot()
@@ -155,17 +177,17 @@ MainTab:AddToggle("AutoFarm", {
                     local mobHum = mob:FindFirstChildOfClass("Humanoid")
 
                     if mobHRP and mobHum and mobHum.Health > 0 then
-                        -- Equip vũ khí
                         EquipWeapon()
+                        ExpandHitbox()
 
                         local height = getgenv().FarmHeight
 
-                        -- Bay trên đầu quái
+                        -- Bay trên đầu
                         root.CFrame = CFrame.new(mobHRP.Position + Vector3.new(0, height, 0))
                         root.AssemblyLinearVelocity = Vector3.zero
                         root.AssemblyAngularVelocity = Vector3.zero
 
-                        -- Gom quái dưới chân
+                        -- Gom quái
                         if getgenv().BringMob then
                             pcall(function()
                                 mobHRP.CFrame = CFrame.new(root.Position.X, root.Position.Y - height + 1, root.Position.Z)
@@ -174,7 +196,6 @@ MainTab:AddToggle("AutoFarm", {
                             end)
                         end
 
-                        -- Đánh
                         DoAttack()
                     end
                 end
@@ -183,7 +204,7 @@ MainTab:AddToggle("AutoFarm", {
             end
         end)
 
-        -- Vòng lặp đánh riêng (spam nhanh hơn)
+        -- Spam đánh
         task.spawn(function()
             while getgenv().AutoFarm do
                 DoAttack()
@@ -200,15 +221,32 @@ MainTab:AddToggle("BringMob", {
     getgenv().BringMob = Value
 end)
 
+MainTab:AddToggle("EnableHitbox", {
+    Title = "Tăng Hitbox",
+    Default = true
+}):OnChanged(function(Value)
+    getgenv().EnableHitbox = Value
+end)
+
 -- Settings
 SettingsTab:AddSlider("FarmHeight", {
     Title = "Độ cao trên đầu quái",
-    Default = 12,
-    Min = 5,
+    Default = 10,
+    Min = 4,
     Max = 25,
     Rounding = 0
 }):OnChanged(function(Value)
     getgenv().FarmHeight = Value
+end)
+
+SettingsTab:AddSlider("HitboxSize", {
+    Title = "Kích thước Hitbox",
+    Default = 8,
+    Min = 3,
+    Max = 25,
+    Rounding = 0
+}):OnChanged(function(Value)
+    getgenv().HitboxSize = Value
 end)
 
 SettingsTab:AddSlider("AttackSpeed", {
@@ -250,8 +288,8 @@ end)
 
 Fluent:Notify({
     Title = "W-Azure Style Hub",
-    Content = "Đã sửa tự động đánh",
+    Content = "Đã thêm Tăng Hitbox",
     Duration = 4
 })
 
-print("[W-Azure Style] Fixed Auto Attack loaded")
+print("[W-Azure Style] Hitbox Expander loaded")
