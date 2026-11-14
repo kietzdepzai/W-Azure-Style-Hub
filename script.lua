@@ -1,18 +1,17 @@
---// W-Azure Style Hub - Optimized Attack Speed
--- Tele trên đầu quái + chọn vũ khí + đánh siêu nhanh
+--// W-Azure Style Hub - Smooth Above Head Farm
+-- Bay trên đầu quái thật sự (không tele rồi nhảy)
 
 getgenv().AutoFarm = false
 getgenv().BringMob = true
-getgenv().SelectedWeapon = "Melee" -- Melee, Sword, Fruit, Gun
-getgenv().FarmHeight = 18
-getgenv().AttackSpeed = 0.015     -- Rất nhanh
+getgenv().SelectedWeapon = "Melee"
+getgenv().FarmHeight = 15
+getgenv().AttackSpeed = 0.015
 
--- Load Fluent UI
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 
 local Window = Fluent:CreateWindow({
     Title = "W-Azure Style Hub",
-    SubTitle = "Optimized Attack",
+    SubTitle = "Smooth Above Head",
     TabWidth = 160,
     Size = UDim2.fromOffset(520, 420),
     Acrylic = false,
@@ -24,9 +23,6 @@ local MainTab = Window:AddTab({ Title = "Main Farm", Icon = "swords" })
 local PlayerTab = Window:AddTab({ Title = "Player", Icon = "user" })
 local SettingsTab = Window:AddTab({ Title = "Settings", Icon = "settings" })
 
-local Options = Fluent.Options
-
--- Services
 local Players = game:GetService("Players")
 local VirtualUser = game:GetService("VirtualUser")
 local RunService = game:GetService("RunService")
@@ -46,7 +42,6 @@ local function GetRoot()
     return char and char:FindFirstChild("HumanoidRootPart")
 end
 
--- Tìm quái gần nhất còn sống
 local function GetClosestMob()
     local root = GetRoot()
     if not root then return nil end
@@ -69,7 +64,6 @@ local function GetClosestMob()
     return closest
 end
 
--- Equip vũ khí theo loại đã chọn
 local function EquipWeapon()
     local char = GetCharacter()
     if not char then return end
@@ -108,7 +102,7 @@ local function EquipWeapon()
     end
 end
 
--- ==================== FAST ATTACK TỐI ƯU ====================
+-- Fast Attack
 local attacking = false
 
 local function StartFastAttack()
@@ -121,15 +115,11 @@ local function StartFastAttack()
             local tool = char and char:FindFirstChildOfClass("Tool")
 
             if tool then
-                -- Spam Activate nhiều lần
-                for i = 1, 3 do
-                    pcall(function()
-                        tool:Activate()
-                    end)
+                for i = 1, 4 do
+                    pcall(function() tool:Activate() end)
                 end
             end
 
-            -- Click backup
             pcall(function()
                 VirtualUser:CaptureController()
                 VirtualUser:ClickButton1(Vector2.new(0, 0))
@@ -147,8 +137,8 @@ end
 
 -- ==================== MAIN FARM ====================
 MainTab:AddParagraph({
-    Title = "Farm kiểu W-Azure",
-    Content = "Bay trên đầu quái + chọn vũ khí + đánh siêu nhanh"
+    Title = "Farm trên đầu quái",
+    Content = "Giữ nhân vật bay cố định trên đầu quái"
 })
 
 MainTab:AddDropdown("WeaponType", {
@@ -167,35 +157,40 @@ MainTab:AddToggle("AutoFarm", {
     getgenv().AutoFarm = Value
 
     if Value then
-        StartFastAttack() -- Bật spam đánh riêng
+        StartFastAttack()
 
         task.spawn(function()
             while getgenv().AutoFarm do
                 local root = GetRoot()
                 local mob = GetClosestMob()
 
-                if root and mob and mob:FindFirstChild("HumanoidRootPart") then
-                    local mobHRP = mob.HumanoidRootPart
+                if root and mob then
+                    local mobHRP = mob:FindFirstChild("HumanoidRootPart")
                     local mobHum = mob:FindFirstChildOfClass("Humanoid")
 
-                    if mobHum and mobHum.Health > 0 then
+                    if mobHRP and mobHum and mobHum.Health > 0 then
                         EquipWeapon()
 
-                        -- Gom quái
+                        local height = getgenv().FarmHeight
+
+                        -- 1. Giữ nhân vật bay trên đầu quái (ưu tiên)
+                        local abovePos = mobHRP.Position + Vector3.new(0, height, 0)
+                        root.CFrame = CFrame.new(abovePos)
+                        root.AssemblyLinearVelocity = Vector3.zero
+                        root.AssemblyAngularVelocity = Vector3.zero
+
+                        -- 2. Kéo quái nằm ngay dưới chân
                         if getgenv().BringMob then
                             pcall(function()
-                                mobHRP.CFrame = root.CFrame * CFrame.new(0, -getgenv().FarmHeight + 2.5, 0)
+                                mobHRP.CFrame = CFrame.new(root.Position - Vector3.new(0, height - 1, 0))
                                 mobHRP.AssemblyLinearVelocity = Vector3.zero
                                 mobHRP.AssemblyAngularVelocity = Vector3.zero
                             end)
                         end
-
-                        -- Bay trên đầu quái
-                        root.CFrame = mobHRP.CFrame * CFrame.new(0, getgenv().FarmHeight, 0)
                     end
                 end
 
-                task.wait(0.03) -- Vòng lặp vị trí
+                task.wait(0.02)
             end
             StopFastAttack()
         end)
@@ -205,7 +200,7 @@ MainTab:AddToggle("AutoFarm", {
 end)
 
 MainTab:AddToggle("BringMob", {
-    Title = "Gom Quái (Bring Mob)",
+    Title = "Gom Quái",
     Default = true
 }):OnChanged(function(Value)
     getgenv().BringMob = Value
@@ -213,10 +208,10 @@ end)
 
 -- ==================== SETTINGS ====================
 SettingsTab:AddSlider("FarmHeight", {
-    Title = "Độ cao bay trên đầu quái",
-    Default = 18,
+    Title = "Độ cao trên đầu quái",
+    Default = 15,
     Min = 6,
-    Max = 35,
+    Max = 30,
     Rounding = 0
 }):OnChanged(function(Value)
     getgenv().FarmHeight = Value
@@ -261,8 +256,8 @@ end)
 
 Fluent:Notify({
     Title = "W-Azure Style Hub",
-    Content = "Đã tối ưu tốc độ đánh!",
+    Content = "Đã sửa thành bay cố định trên đầu quái",
     Duration = 4
 })
 
-print("[W-Azure Style] Optimized Attack loaded")
+print("[W-Azure Style] Smooth Above Head Farm loaded")
