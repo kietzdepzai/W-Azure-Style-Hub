@@ -1,19 +1,17 @@
---// W-Azure Style Hub - Smooth Above Head Farm
--- Bay trên đầu quái thật sự (không tele rồi nhảy)
-
+--// W-Azure Style Hub - Fixed Auto Attack
 getgenv().AutoFarm = false
 getgenv().BringMob = true
 getgenv().SelectedWeapon = "Melee"
-getgenv().FarmHeight = 15
-getgenv().AttackSpeed = 0.015
+getgenv().FarmHeight = 12
+getgenv().AttackSpeed = 0.02
 
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 
 local Window = Fluent:CreateWindow({
     Title = "W-Azure Style Hub",
-    SubTitle = "Smooth Above Head",
+    SubTitle = "Fixed Attack",
     TabWidth = 160,
-    Size = UDim2.fromOffset(520, 420),
+    Size = UDim2.fromOffset(520, 430),
     Acrylic = false,
     Theme = "Dark",
     MinimizeKey = Enum.KeyCode.LeftControl
@@ -25,7 +23,6 @@ local SettingsTab = Window:AddTab({ Title = "Settings", Icon = "settings" })
 
 local Players = game:GetService("Players")
 local VirtualUser = game:GetService("VirtualUser")
-local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
 local function GetCharacter()
@@ -64,81 +61,71 @@ local function GetClosestMob()
     return closest
 end
 
+-- Equip vũ khí
 local function EquipWeapon()
     local char = GetCharacter()
-    if not char then return end
+    local hum = GetHumanoid()
+    if not char or not hum then return end
 
     local backpack = LocalPlayer:FindFirstChild("Backpack")
     if not backpack then return end
 
     local weaponType = getgenv().SelectedWeapon
 
-    local function isCorrectType(tool)
+    local function match(tool)
         if not tool:IsA("Tool") then return false end
-        local name = tool.Name:lower()
-
+        local n = tool.Name:lower()
         if weaponType == "Melee" then
-            return name:find("combat") or name:find("melee") or name:find("fist") or name == "combat"
+            return n:find("combat") or n == "combat" or n:find("fist") or n:find("melee")
         elseif weaponType == "Sword" then
-            return tool:FindFirstChild("Sword") or name:find("sword") or name:find("blade") or name:find("cutlass") or name:find("katana")
+            return tool:FindFirstChild("Sword") or n:find("sword") or n:find("blade") or n:find("cutlass") or n:find("katana") or n:find("saber")
         elseif weaponType == "Fruit" then
-            return tool:FindFirstChild("Fruit") or name:find("fruit") or name:find("power")
+            return tool:FindFirstChild("Fruit") or n:find("fruit") or n:find("power") or n:find("bomb") or n:find("flame") or n:find("ice") or n:find("light") or n:find("dark") or n:find("magma") or n:find("quake") or n:find("buddha") or n:find("phoenix") or n:find("dragon")
         elseif weaponType == "Gun" then
-            return tool:FindFirstChild("Gun") or name:find("gun") or name:find("pistol") or name:find("rifle")
+            return tool:FindFirstChild("Gun") or n:find("gun") or n:find("pistol") or n:find("rifle") or n:find("cannon")
         end
         return false
     end
 
-    local current = char:FindFirstChildOfClass("Tool")
-    if current and isCorrectType(current) then return end
+    -- Đang cầm đúng rồi thì thôi
+    local holding = char:FindFirstChildOfClass("Tool")
+    if holding and match(holding) then return true end
 
+    -- Tìm trong backpack
     for _, tool in ipairs(backpack:GetChildren()) do
-        if isCorrectType(tool) then
+        if match(tool) then
             pcall(function()
-                GetHumanoid():EquipTool(tool)
+                hum:EquipTool(tool)
             end)
-            return
+            task.wait(0.05)
+            return true
         end
     end
+    return false
 end
 
--- Fast Attack
-local attacking = false
+-- Hàm đánh
+local function DoAttack()
+    local char = GetCharacter()
+    if not char then return end
 
-local function StartFastAttack()
-    if attacking then return end
-    attacking = true
+    local tool = char:FindFirstChildOfClass("Tool")
+    if tool then
+        pcall(function()
+            tool:Activate()
+        end)
+    end
 
-    task.spawn(function()
-        while getgenv().AutoFarm and attacking do
-            local char = GetCharacter()
-            local tool = char and char:FindFirstChildOfClass("Tool")
-
-            if tool then
-                for i = 1, 4 do
-                    pcall(function() tool:Activate() end)
-                end
-            end
-
-            pcall(function()
-                VirtualUser:CaptureController()
-                VirtualUser:ClickButton1(Vector2.new(0, 0))
-            end)
-
-            task.wait(getgenv().AttackSpeed)
-        end
-        attacking = false
+    pcall(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton1(Vector2.new(0, 0))
     end)
 end
 
-local function StopFastAttack()
-    attacking = false
-end
-
--- ==================== MAIN FARM ====================
+-- ==================== UI ====================
 MainTab:AddParagraph({
     Title = "Farm trên đầu quái",
-    Content = "Giữ nhân vật bay cố định trên đầu quái"
+    Content = "Bay trên đầu + tự động đánh"
 })
 
 MainTab:AddDropdown("WeaponType", {
@@ -157,8 +144,7 @@ MainTab:AddToggle("AutoFarm", {
     getgenv().AutoFarm = Value
 
     if Value then
-        StartFastAttack()
-
+        -- Vòng lặp di chuyển + đánh
         task.spawn(function()
             while getgenv().AutoFarm do
                 local root = GetRoot()
@@ -169,33 +155,41 @@ MainTab:AddToggle("AutoFarm", {
                     local mobHum = mob:FindFirstChildOfClass("Humanoid")
 
                     if mobHRP and mobHum and mobHum.Health > 0 then
+                        -- Equip vũ khí
                         EquipWeapon()
 
                         local height = getgenv().FarmHeight
 
-                        -- 1. Giữ nhân vật bay trên đầu quái (ưu tiên)
-                        local abovePos = mobHRP.Position + Vector3.new(0, height, 0)
-                        root.CFrame = CFrame.new(abovePos)
+                        -- Bay trên đầu quái
+                        root.CFrame = CFrame.new(mobHRP.Position + Vector3.new(0, height, 0))
                         root.AssemblyLinearVelocity = Vector3.zero
                         root.AssemblyAngularVelocity = Vector3.zero
 
-                        -- 2. Kéo quái nằm ngay dưới chân
+                        -- Gom quái dưới chân
                         if getgenv().BringMob then
                             pcall(function()
-                                mobHRP.CFrame = CFrame.new(root.Position - Vector3.new(0, height - 1, 0))
+                                mobHRP.CFrame = CFrame.new(root.Position.X, root.Position.Y - height + 1, root.Position.Z)
                                 mobHRP.AssemblyLinearVelocity = Vector3.zero
                                 mobHRP.AssemblyAngularVelocity = Vector3.zero
                             end)
                         end
+
+                        -- Đánh
+                        DoAttack()
                     end
                 end
 
-                task.wait(0.02)
+                task.wait(0.03)
             end
-            StopFastAttack()
         end)
-    else
-        StopFastAttack()
+
+        -- Vòng lặp đánh riêng (spam nhanh hơn)
+        task.spawn(function()
+            while getgenv().AutoFarm do
+                DoAttack()
+                task.wait(getgenv().AttackSpeed)
+            end
+        end)
     end
 end)
 
@@ -206,12 +200,12 @@ MainTab:AddToggle("BringMob", {
     getgenv().BringMob = Value
 end)
 
--- ==================== SETTINGS ====================
+-- Settings
 SettingsTab:AddSlider("FarmHeight", {
     Title = "Độ cao trên đầu quái",
-    Default = 15,
-    Min = 6,
-    Max = 30,
+    Default = 12,
+    Min = 5,
+    Max = 25,
     Rounding = 0
 }):OnChanged(function(Value)
     getgenv().FarmHeight = Value
@@ -219,15 +213,15 @@ end)
 
 SettingsTab:AddSlider("AttackSpeed", {
     Title = "Tốc độ đánh (càng nhỏ càng nhanh)",
-    Default = 0.015,
-    Min = 0.005,
-    Max = 0.08,
+    Default = 0.02,
+    Min = 0.008,
+    Max = 0.1,
     Rounding = 3
 }):OnChanged(function(Value)
     getgenv().AttackSpeed = Value
 end)
 
--- ==================== PLAYER ====================
+-- Player
 PlayerTab:AddSlider("WalkSpeed", {
     Title = "Walk Speed",
     Default = 16,
@@ -256,8 +250,8 @@ end)
 
 Fluent:Notify({
     Title = "W-Azure Style Hub",
-    Content = "Đã sửa thành bay cố định trên đầu quái",
+    Content = "Đã sửa tự động đánh",
     Duration = 4
 })
 
-print("[W-Azure Style] Smooth Above Head Farm loaded")
+print("[W-Azure Style] Fixed Auto Attack loaded")
